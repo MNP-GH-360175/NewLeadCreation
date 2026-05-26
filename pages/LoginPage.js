@@ -5,7 +5,7 @@ export class LoginPage {
     this.passwordInput = page.locator('input[name="password"]');
     this.loginBtn = page.locator('button[name="loginButton"]');
     this.popupOkButton = page.locator('button.ant-btn-primary span:has-text("OK"), button:has-text("OK")').first();
-  }
+  } 
 
   async navigate() {
     await this.page.goto('https://uatngl.manappuram.com/lead/#/login', { timeout: 90000, waitUntil: 'commit' });
@@ -20,7 +20,7 @@ export class LoginPage {
     await this.passwordInput.fill(password);
     await this.loginBtn.click();
 
-    // await this.popupOkButton.waitFor({ state: 'visible', timeout: 15000 });
-    // await this.popupOkButton.click(); 
+    await this.popupOkButton.waitFor({ state: 'visible', timeout: 15000 });
+    await this.popupOkButton.click(); 
   }
 }

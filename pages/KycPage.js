@@ -2,53 +2,41 @@ export class KycPage {
   constructor(page) {
     this.page = page;
     
-    // Grid Rows targeting specific tags based on your screenshot structure
+    // Grid Rows targeting specific applicant profiles
     this.applicantRow = page.locator('tr', { has: page.locator('.ant-tag, span').filter({ hasText: /^Applicant$/ }) }).first();
     this.coApplicantRow = page.locator('tr', { has: page.locator('.ant-tag, span').filter({ hasText: /^Co-Applicant$/ }) }).first();
     
-    // Document Form Fields
-    this.docTypeDropdown1 = page.getByRole('textbox').first();
-    this.dlOption = page.locator('.ant-select-item-option-content:has-text("Driving License"), nz-option-item:has-text("Driving License")').first();    this.dlNumberField = page.getByRole('textbox', { name: 'Enter Document Number' }).first();
-    
-    this.docTypeDropdown2 = page.locator('nz-select-top-control').filter({ hasText: 'Select the document type' }).locator('nz-select-search');
-    this.coAppDocTypeDropdown2 = page.locator('nz-select-top-control').filter({ hasText: 'Select the document type' }).getByRole('textbox');
-    this.aadhaarOption = page.locator('.ant-select-item-option-content:has-text("UIDAI Card (Aadhaar)"), nz-option-item:has-text("UIDAI Card (Aadhaar)")').first();
-    this.aadhaarNumberField = page.getByRole('textbox', { name: 'Enter Document Number' }).nth(1);
-    
-    // Actions & Modal Closures
-    this.verifyBtn = page.getByRole('button', { name: 'Verify' });
-    this.closeModalBtn = page.locator('.ant-modal-close, button:has-text("Cancel")').first();
+    // Ant-Design Specific Modals Context Elements
     this.modalContent = page.locator('.ant-modal-content');
-    // Add these lines inside the constructor of pages/KycPage.js
-this.panNumberField = page.locator('input[placeholder*="PAN" i], input[formcontrolname="panNumber"]').first();
-this.panVerifyBtn = page.locator('button:has-text("Verify"), button.ant-btn-primary:has-text("Verify")').first();
-
+    this.closeModalBtn = page.locator('.ant-modal-close, button:has-text("Cancel")').first();
+    this.verifyBtn = page.locator('.ant-modal-content button:has-text("Verify")').first();
   }
 
-      async executeApplicantKyc(data) {
+  // Resilient helper method to safely handle modal dismissals
+  async safelyDismissModal() {
+    try {
+      if (await this.modalContent.isVisible({ timeout: 3000 })) {
+        console.log('⏳ Closing modal window context...');
+        await this.closeModalBtn.click({ force: true, timeout: 3000 });
+      }
+    } catch (error) {
+      console.log('⚠️ Modal closed during processing execution.');
+    }
+    await this.modalContent.waitFor({ state: 'detached', timeout: 5000 }).catch(() => null);
+  }
+
+  async executeApplicantKyc(data) {
     console.log('🚀 Commencing Applicant KYC uploads...');
-    
     await this.applicantRow.waitFor({ state: 'visible', timeout: 15000 });
-    await this.applicantRow.scrollIntoViewIfNeeded();
     
-    // 🚀 FIXED: Uses regex filter to ignore hidden spaces or dynamic Angular comments inside the <td>
-    const updateCell = this.applicantRow.locator('td').filter({ hasText: /Click here to update/ }).first();
-    await updateCell.waitFor({ state: 'visible', timeout: 5000 });
-    await updateCell.click(); 
-    
-    // ... (rest of your applicant field inputs remain unchanged) ...
-    await this.docTypeDropdown1.click();
-    await this.dlOption.click();
-    await this.dlNumberField.fill(data.dlNumber);
-    await this.docTypeDropdown2.click();
-    await this.aadhaarOption.click();
-    await this.aadhaarNumberField.fill(data.aadhaarNumber);
-    await this.verifyBtn.click();
-    
-    await this.closeModalBtn.waitFor({ state: 'visible', timeout: 5000 });
-    await this.closeModalBtn.click();
-    await this.modalContent.waitFor({ state: 'detached', timeout: 7000 });
-    await this.page.waitForTimeout(2000); 
+    // Target the specific KYC cell explicitly inside the applicant row
+    const kycCell = this.applicantRow.locator('td').nth(2).filter({ hasText: /Click here to update/i });
+    if (await kycCell.isVisible()) {
+      await kycCell.click();
+      await this.fillKycModalDetails(data);
+    } else {
+      console.log('⏭️ Applicant KYC already populated. Skipping dropdown actions.');
+    }
   }
 
   async executeCoApplicantKyc(data) {
@@ -56,25 +44,36 @@ this.panVerifyBtn = page.locator('button:has-text("Verify"), button.ant-btn-prim
     await this.coApplicantRow.waitFor({ state: 'visible', timeout: 15000 });
     await this.coApplicantRow.scrollIntoViewIfNeeded();
     
-    // 🚀 FIXED: Identical bulletproof cell filter for the Co-Applicant row scope
-    const coAppUpdateCell = this.coApplicantRow.locator('td').filter({ hasText: /Click here to update/ }).first();
-    await coAppUpdateCell.waitFor({ state: 'visible', timeout: 5000 });
-    await coAppUpdateCell.click(); 
+    // Target the specific KYC cell explicitly inside the co-applicant row (3rd column / Index 2)
+    const coAppKycCell = this.coApplicantRow.locator('td').nth(2).filter({ hasText: /Click here to update/i });
     
-    // ... (rest of your co-applicant inputs remain unchanged) ...
-    await this.docTypeDropdown1.click();
-    await this.dlOption.click();
-    await this.dlNumberField.fill(data.dlNumber);
-    await this.coAppDocTypeDropdown2.click();
-    await this.aadhaarOption.click();
-    await this.aadhaarNumberField.fill(data.aadhaarNumber);
-    await this.verifyBtn.click();
-    await this.closeModalBtn.waitFor({ state: 'visible', timeout: 5000 });
-    await this.closeModalBtn.click();
-    await this.modalContent.waitFor({ state: 'detached', timeout: 5000 });
+    if (await coAppKycCell.isVisible()) {
+      await coAppKycCell.click();
+      await this.fillKycModalDetails(data);
+    } else {
+      console.log('⏭️ Co-Applicant KYC already verified or skipped.');
+    }
   }
 
+  // Isolated reusable modal steps utilizing clean, scoped dropdown locators
+  async fillKycModalDetails(data) {
+    // Target fields relative strictly to inside the opened modal window to prevent global textbox misclicks
+    const firstDropdown = this.modalContent.locator('nz-select').first();
+    await firstDropdown.click();
+    await this.page.locator('nz-option-item:has-text("Driving License"), .ant-select-item-option-content:has-text("Driving License")').first().click();
+    
+    const firstInput = this.modalContent.locator('input[type="text"]').first();
+    await firstInput.fill(data.dlNumber);
 
+    const secondDropdown = this.modalContent.locator('nz-select').nth(1);
+    await secondDropdown.click();
+    await this.page.locator('nz-option-item:has-text("UIDAI Card (Aadhaar)"), .ant-select-item-option-content:has-text("UIDAI Card (Aadhaar)")').first().click();
+    
+    const secondInput = this.modalContent.locator('input[type="text"]').nth(1);
+    await secondInput.fill(data.aadhaarNumber);
 
-
+    await this.verifyBtn.click();
+    await this.safelyDismissModal();
+    await this.page.waitForTimeout(1500);
+  }
 }

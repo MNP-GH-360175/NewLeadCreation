@@ -10,5 +10,8 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.1"
+  },
+  "dependencies": {
+    "oracledb": "^6.10.0"
   }
 }

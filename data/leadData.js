@@ -6,11 +6,11 @@ export const TEST_DATA = {
     },
     leadDetails: {
       leadType: 'New Lead',
-      applicantName: 'Nandu I S',
-      mobileNumber: '9400140123',
-      altMobileNumber: '9400140123',
+      applicantName: 'Aravindan',
+      mobileNumber: '8590228978',
+      altMobileNumber: '8590228978',
       leadSource: 'Own lead',
-      generatorMobile: '9400140123',
+      generatorMobile: '8590228978',
       loanType: 'LAP',
       scheme: 'LAP - Salaried',
       loanAmount: '500000',
@@ -25,7 +25,7 @@ export const TEST_DATA = {
       password: 'soft1234'
     },
     statusUpdate: {
-      targetMobile: '9400140123', 
+      targetMobile: '8590228978', 
       callingStatus: 'Interested', 
       assignOfficerCode: '369343', 
       remarks: 'Updated status via automated script'
