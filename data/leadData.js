@@ -6,11 +6,11 @@ export const TEST_DATA = {
     },
     leadDetails: {
       leadType: 'New Lead',
-      applicantName: 'Aravindan',
-      mobileNumber: '8590228978',
-      altMobileNumber: '8590228978',
+      applicantName: 'Ranjith T G',
+      mobileNumber: '8590228971',
+      altMobileNumber: '8590228971',
       leadSource: 'Own lead',
-      generatorMobile: '8590228978',
+      generatorMobile: '8590228971',
       loanType: 'LAP',
       scheme: 'LAP - Salaried',
       loanAmount: '500000',
@@ -40,6 +40,12 @@ export const TEST_DATA = {
     coApplicant: { 
       dlNumber: 'DL881234567890',
       aadhaarNumber: '6677 8899 0011'
+    }
+  },
+  branchManager: {
+    login: {
+      username: '83826',
+      password: 'soft1234'
     }
   }
 };

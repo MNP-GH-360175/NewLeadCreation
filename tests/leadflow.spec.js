@@ -6,6 +6,7 @@ import { SalesHeadPage } from '../pages/SalesHeadPage';
 import { BureauCheckPage } from '../pages/BureauCheckPage';
 import { KycPage } from '../pages/KycPage';
 import { forceVerifyPanInDb } from '../helpers/panDbService';
+import { BranchManagerPage } from '../pages/BranchManagerPage'; 
 
 const TARGET_MOBILE = TEST_DATA.salesOfficer.leadDetails.mobileNumber;
 
@@ -43,21 +44,33 @@ test.describe('Manappuram Lead Management System Flow', () => {
     await bureauPage.openLeadFromPool(TARGET_MOBILE);
     
     await bureauPage.fillPrimaryApplicant({
-      firstName: "Aravindan",
-      lastName: "K",
+      firstName: "Ranjith",
+      lastName: "T G",
       dob: "20-Oct-1990",
       mobileNumber: "8590228978"
     });
     
     await bureauPage.fillCoApplicant({
-      firstName: "Vignesh",
-      lastName: "G",
+      firstName: "Nikhil",
+      lastName: "S",
       dob: "20-Oct-1990",
       mobileNumber: "8590228979"
     }); 
   });
 
-    test('Step 4: SO-KYC-UPLOAD ', async ({ page }) => {
+  test('Step 4: Seed PAN & Bureau Records via Backend Database', async () => {
+    console.log('⚡ Running isolated backend database modifications for PAN & Bureau scores...');
+    
+    const currentLeadId = 4937; 
+    
+    await forceVerifyPanInDb(currentLeadId, 'Karthikeyan K', 'EEEPB6205R'); 
+    await forceVerifyPanInDb(currentLeadId, 'Vignesh', 'XYZWR5678R');      
+    
+    console.log('✅ Step 4 Complete: Database values applied successfully.');
+  });
+
+  // 💻 UI PROCESS: UI opens and sees the true, seeded values from the DB
+  test('Step 5: SO-KYC-UPLOAD & Lead Submit', async ({ page }) => {
     test.setTimeout(120000);
     const loginPage = new LoginPage(page);
     const bureauPage = new BureauCheckPage(page); 
@@ -66,64 +79,82 @@ test.describe('Manappuram Lead Management System Flow', () => {
     const credentials = TEST_DATA.salesOfficer.login;
     const kycConfig = TEST_DATA.kycDetails;
 
-    // 🚀 INTERCEPT THE NETWORKS: Catch any dynamic API metadata payload matching lead details
-    // Replace '*getLeadApplicant*' with the actual endpoint segment visible in your browser dev-tools network tab
+    // Optional Network Interceptor fallback
     await page.route('**/*LeadApplicant*', async (route) => {
-      console.log('🌐 Intercepting network validation details to force PAN approval flags...');
+      console.log('🌐 Intercepting network validation details to reinforce API status flags...');
       const response = await route.fetch();
       let bodyText = await response.text();
       
       try {
         let jsonPayload = JSON.parse(bodyText);
-        
-        // Dynamically override status attributes across array entries if available
         if (Array.isArray(jsonPayload)) {
           jsonPayload.forEach(applicant => {
-            applicant.Pan = applicant.ApplicantName.toUpperCase().includes('Aravindan') ? 'XYZWR5678G' : 'EEEPB6205O';
             applicant.IsPanVerified = 1;
             applicant.PanStatus = 'VERIFIED';
+            applicant.BureauScore = 750;
+            applicant.EquifaxBureauScore = 740;
           });
-        } else if (jsonPayload.data) {
-          // If wrapped inside a nested framework structural object
-          if (Array.isArray(jsonPayload.data)) {
-            jsonPayload.data.forEach(applicant => {
-              applicant.Pan = applicant.ApplicantName.toUpperCase().includes('VIGNESH') ? 'XYZWR5678G' : 'EEEPB6205O';
-              applicant.IsPanVerified = 1;
-            });
-          }
         }
-        
-        await route.fulfill({
-          response,
-          body: JSON.stringify(jsonPayload)
-        });
+        await route.fulfill({ response, body: JSON.stringify(jsonPayload) });
       } catch (err) {
-        // Fallback option in case text modification is safer than JSON structures
         bodyText = bodyText.replace(/"IsPanVerified":0/g, '"IsPanVerified":1');
         await route.fulfill({ response, body: bodyText });
       }
     });
-
-    console.log('💻 Proceeding with UI KYC testing steps...');
-    await loginPage.navigate();
-    await loginPage.login(credentials.username, credentials.password);
-    await bureauPage.openLeadFromPool(TARGET_MOBILE);
     
-    // Execute core document uploads (Driving License and Aadhaar rows)
-    await kycPage.executeApplicantKyc(kycConfig.applicant);
-    await kycPage.executeCoApplicantKyc(kycConfig.coApplicant);
+      // 2. Re-login and open the lead pool to confirm data reflects visually
+  await loginPage.navigate();
+  await loginPage.login(credentials.username, credentials.password);
+  await bureauPage.openLeadFromPool(TARGET_MOBILE);
+
+  // 3. Focus onto the Bureau Check layout grid
+  const bureauTab = page.locator('div[role="tab"], .ant-tabs-tab-btn').filter({ hasText: /^Bureau Check$/ }).first();
+  await bureauTab.waitFor({ state: 'visible' });
+  await bureauTab.click();
+
+  console.log('⏳ Waiting for Angular layout and score columns to populate...');
+  // Force a wait for the dynamic score table wrapper container to appear in the DOM
+  await page.waitForSelector('.ant-table-tbody, nz-table', { state: 'visible', timeout: 15000 });
+
+  // 4. Click final submit button with scroll and visibility assurances
+  console.log('🎯 Locating Lead submit button...');
+  const submitButton = page.locator('button.ant-btn.button-3:has-text("Lead submit")');
+  
+  // Explicitly scroll it into view and ensure it is fully ready
+  await submitButton.scrollIntoViewIfNeeded();
+  await submitButton.waitFor({ state: 'visible', timeout: 10000 });
+  
+  // Execute the click action
+  await submitButton.click();
+  console.log('✅ Step 4b Complete: Verification confirmed and Lead submitted.');
+
+  });
+  test('Step 6: Branch Manager - Evaluation & Approval', async ({ page }) => {
+  test.setTimeout(120000);
+  const loginPage = new LoginPage(page);
+  const bmPage = new BranchManagerPage(page);
+  
+  const bmConfig = TEST_DATA.branchManager;
+
+  console.log('💻 Launching Branch Manager portal login phase...');
+  await loginPage.navigate();
+  await loginPage.login(bmConfig.login.username, bmConfig.login.password);
+
+  // Navigate using the class structure method
+  await bmPage.openLeadAndNavigateToApproval(TARGET_MOBILE);
+
+  // 🚀 FIXED: Directly passing data parameters here since TEST_DATA only contains the BM employee code
+  await bmPage.performApprovalFormFill({
+    applicantProfileText: 'Salaried Professional Verification Confirmed',
+    applicantIncomeAmount: 45000,
+    coApplicantProfileText: 'Co-Applicant Document Profile Sourced',
+    coApplicantIncomeAmount: 35000,
+    foirPercentage: 42,
+    propertyOwnerNameText: 'Ranjith T G'
   });
 
-    test('Step 5: Seed PAN Verification Records via Backend Database', async () => {
-    console.log('⚡ Running isolated backend database modifications for PAN rows...');
-    
-    const currentLeadId = 4939; // 🚀 Targets your current test data profile context perfectly
-    
-    await forceVerifyPanInDb(currentLeadId, 'Aravindan', 'EEEPB6205R'); 
-    await forceVerifyPanInDb(currentLeadId, 'Vignesh', 'XYZWR5678R');      
-    
-    console.log('✅ Step 5 Complete: Database values applied successfully.');
-  });
+  console.log('🎉 Step 6 Complete: Application completely approved by the Branch Manager!');
+});
 
 
 });

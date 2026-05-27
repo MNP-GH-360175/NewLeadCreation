@@ -25,7 +25,11 @@ export async function forceVerifyPanInDb(leadId, targetName, validPanNumber) {
     const updateQuery = `
       UPDATE "LeadApplicant" 
       SET "Pan" = :pan, 
-          "IsPanVerified" = 1
+          "IsPanVerified" = 1,
+          "BureauScore" = 750,
+          "BureauScoreDate" = SYSDATE,
+          "EquifaxBureauScore" = 740,
+          "EquifaxBureauScoreDate" = SYSDATE
       WHERE "LeadId" = :leadId 
         AND UPPER("ApplicantName") LIKE :name
     `;
